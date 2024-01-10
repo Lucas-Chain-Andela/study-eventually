@@ -19,7 +19,7 @@ export const Pokemon = (id: string): PokeAggregate => ({
     },
   },
   description: "A pokemon",
-  stream: `pokemon-${id}`,
+  stream: () => `pokemon-${id}`,
   init: () => ({
     pokedexNumber: parseInt(id),
     name: "Missingno",
@@ -40,12 +40,15 @@ export const Pokemon = (id: string): PokeAggregate => ({
       if (isCaught) {
         throw Error("Pokemon is already caught");
       }
-      const bound = bind("PokemonCaught",
-        {
-          ...data,
-          success: Math.random() > 0.5,
-        });
-      return Promise.resolve([bound]);
+      return Promise.resolve(
+        [bind(
+          "PokemonCaught",
+          {
+            ...data,
+            success: Math.random() > 0.5,
+          }
+        )]
+      );
     },
   },
 });

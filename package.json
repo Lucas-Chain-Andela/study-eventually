@@ -13,10 +13,10 @@
   },
   "license": "ISC",
   "dependencies": {
-    "@rotorsoft/eventually": "^5.7.22",
-    "@rotorsoft/eventually-express": "^5.7.12",
-    "typescript": "^5.3.3",
-    "zod": "^3.22.4"
+    "@rotorsoft/eventually": "5.0.0",
+    "@rotorsoft/eventually-express": "5.0.0",
+    "typescript": "^5.0.0",
+    "zod": "^3.19.1"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.23.8",

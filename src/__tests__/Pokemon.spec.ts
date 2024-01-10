@@ -2,6 +2,7 @@ import {
   app,
   client,
   dispose,
+  InMemorySnapshotStore,
   Snapshot,
 } from "@rotorsoft/eventually";
 import {
@@ -14,28 +15,22 @@ export type PokemonSnapshot = Snapshot<models.Pokemon, models.PokemonEvents>;
 
 const hatchEgg = async (
   pokemon: models.Pokemon,
-): Promise<PokemonSnapshot> => {
-  const result = await client().command(
+): Promise<PokemonSnapshot[]> => {
+  return client().command(
     Pokemon,
     "HatchEgg",
     pokemon,
     {
-      stream: pokemon.pokedexNumber.toString()
+      id: pokemon.pokedexNumber.toString()
     }
   );
-
-  if (!result) {
-    throw new Error("Hatch command failed");
-  }
-
-  return result
 }
 
 const throwPokeball = async (
   pokedexNumber: number,
   attempt: models.CatchAttempt
-): Promise<PokemonSnapshot> => {
-  const result = await client().command(
+): Promise<PokemonSnapshot[]> => {
+  return client().command(
     Pokemon,
     "ThrowPokeball",
     {
@@ -43,25 +38,20 @@ const throwPokeball = async (
       pokedexNumber: pokedexNumber,
     },
     {
-      stream: pokedexNumber.toString()
+      id: pokedexNumber.toString()
     }
   );
-
-  if (!result) {
-    throw new Error("Unexpected error throwing pokeball");
-  }
-
-  return result;
 }
 
 describe("Pokemon", () => {
-  // we don't need the in memory store since this commit
-  // https://github.com/Rotorsoft/eventually-monorepo/commit/60785ca59793b1a1239d2ac5b85993fea880b89e
-  // const store = new InMemorySnapshotStore();
+  const store = InMemorySnapshotStore();
   const originalRandom = Math.random;
 
   beforeAll(async () => {
-    app().with(Pokemon).build();
+    app().with(Pokemon).withSnapshot(Pokemon, {
+      threshold: -1,
+      store,
+    }).build();
     await app().listen();
 
     await hatchEgg({
@@ -84,32 +74,32 @@ describe("Pokemon", () => {
     jest.clearAllMocks();
   });
 
+  it("allows looking up on multiple streams", async () => {
+    const result = await store.query({});
 
-  it("allows pokemon to be looked up", async () => {
-    const pokemon = await client().load(Pokemon, "pokemon-1");
-    expect(pokemon.state.name).toBe("Bulbasaur");
+    expect(result.length).toBe(3);
   });
 
   describe("when a pokeball is thrown", () => {
     it("registers catch attempts when pokeball is thrown", async () => {
-      const pokemon = await client().load(Pokemon, "pokemon-1");
+      const pokemon = await store.read<PokemonSnapshot, models.PokemonEvents>("pokemon-1") as any as PokemonSnapshot;
 
       const result = await throwPokeball(pokemon.state.pokedexNumber, { id: 1, success: true });
 
-      expect(result.state.catchAttempts.length).toBe(1);
+      expect(result[0].state.catchAttempts.length).toBe(1);
     });
 
     describe("and the pokemon is caught", () => {
       it("registers the pokemon as caught", async () => {
         Math.random = jest.fn().mockReturnValue(0.9);
-        const pokemon = await client().load(Pokemon, "pokemon-1");
+        const pokemon = await store.read<PokemonSnapshot, models.PokemonEvents>("pokemon-4") as any as PokemonSnapshot;
 
         const result = await throwPokeball(pokemon.state.pokedexNumber, { id: 1, success: true });
 
+        const state = result[0].state;
+        expect(state.catchAttempts.length).toBe(1);
 
-        expect(result.state.catchAttempts.length).toBe(1);
-
-        const attempt = result.state.catchAttempts[0] as any;
+        const attempt = state.catchAttempts[0] as any as { data: models.CatchAttempt };
         expect(attempt.data.success).toBe(true);
       });
     });
@@ -117,12 +107,13 @@ describe("Pokemon", () => {
     describe("and the pokemon is not caught", () => {
       it("registers the pokemon as not caught", async () => {
         Math.random = jest.fn().mockReturnValue(0.1);
-        const pokemon = await client().load(Pokemon, "pokemon-1");
+        const pokemon = await store.read<PokemonSnapshot, models.PokemonEvents>("pokemon-7") as any as PokemonSnapshot;
 
         const result = await throwPokeball(pokemon.state.pokedexNumber, { id: 1, success: true });
 
-        expect(result.state.catchAttempts.length).toBe(1);
-        const attempt = result.state.catchAttempts[0] as any;
+        const state = result[0].state;
+        expect(state.catchAttempts.length).toBe(1);
+        const attempt = state.catchAttempts[0] as any as { data: models.CatchAttempt };
         expect(attempt.data.success).toBe(false);
       });
     });
