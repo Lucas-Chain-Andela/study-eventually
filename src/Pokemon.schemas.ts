@@ -8,7 +8,7 @@ export enum PokemonType {
 
 export const CatchAttempt = z.object({
   id: z.number(),
-  success: z.boolean(),
+  success: z.boolean().optional(),
 });
 
 export const Pokemon = z.object({
